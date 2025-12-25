@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 256,
         messages: [
           {
@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
 
 Given the English input below, provide:
 1. The simplest, most natural Vietnamese phrase to convey this meaning (not a literal translation)
-2. A phonetic pronunciation guide for English speakers (use simple syllables, indicate tones with descriptions like "rising" or "falling" where critical)
+2. A phonetic pronunciation guide for English speakers using this format:
+   - Write each syllable with English-friendly spelling
+   - Add tone arrows after each syllable: → (level), ↗ (rising), ↘ (falling), ↷ (dipping), ↓ (drop)
+   - Example: "sin→ chow↘" for "Xin chào"
 3. A category for this phrase (one of: greetings, food, directions, shopping, emergencies, social, transport, numbers, questions, or general)
 
 Input: "${text}"
