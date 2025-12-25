@@ -116,7 +116,6 @@ export default function Home() {
       {showLarge && currentPhrase && (
         <div className={styles.largeDisplay} onClick={() => setShowLarge(false)}>
           <p className={styles.largeVietnamese}>{currentPhrase.vietnamese}</p>
-          <p className={styles.largePhonetic}>{currentPhrase.phonetic}</p>
           <p className={styles.tapHint}>Tap to close</p>
         </div>
       )}
