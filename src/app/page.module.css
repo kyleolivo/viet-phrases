@@ -1,0 +1,291 @@
+.main {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 24px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.listBtn {
+  position: relative;
+  padding: 8px;
+  color: var(--text-secondary);
+  font-size: 24px;
+}
+
+.listIcon {
+  display: block;
+}
+
+.badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.input {
+  flex: 1;
+  padding: 16px;
+  font-size: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input::placeholder {
+  color: var(--text-secondary);
+}
+
+.submitBtn {
+  padding: 16px 20px;
+  font-size: 18px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+
+.submitBtn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.submitBtn:not(:disabled):hover {
+  background: var(--accent-dim);
+}
+
+.result {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 16px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.english {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.vietnamese {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.phonetic {
+  font-size: 20px;
+  color: var(--accent);
+  font-style: italic;
+  margin-bottom: 16px;
+}
+
+.expandBtn {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.expandBtn:hover {
+  background: var(--border);
+}
+
+.hint {
+  margin-top: auto;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.hint p {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Large display overlay */
+.largeDisplay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 32px;
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+.largeVietnamese {
+  font-size: 48px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 24px;
+  line-height: 1.2;
+}
+
+.largePhonetic {
+  font-size: 32px;
+  color: var(--accent);
+  text-align: center;
+  font-style: italic;
+}
+
+.tapHint {
+  position: absolute;
+  bottom: 48px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* List view */
+.listView {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.listHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.listHeader h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.closeBtn {
+  padding: 8px;
+  font-size: 20px;
+  color: var(--text-secondary);
+}
+
+.listContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.category {
+  margin-bottom: 24px;
+}
+
+.categoryTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.phraseItem {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.phraseItem:hover {
+  background: var(--bg-tertiary);
+}
+
+.phraseEnglish {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.phraseVietnamese {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.emptyState {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 48px 16px;
+}
