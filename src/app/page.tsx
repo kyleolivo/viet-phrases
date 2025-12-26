@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import styles from "./page.module.css";
 
 interface Phrase {
@@ -306,6 +307,14 @@ export default function Home() {
         <header className={styles.header}>
           <h1 className={styles.title}>Việt</h1>
           <div className={styles.headerButtons}>
+            <Link
+              href="/diacritics"
+              className={styles.diacriticsBtn}
+              aria-label="Diacritics reference"
+              title="Diacritics reference"
+            >
+              <span className={styles.diacriticsIcon}>ắ</span>
+            </Link>
             <button
               className={styles.syncBtn}
               onClick={() => setShowSyncKey(true)}

@@ -33,6 +33,26 @@
   align-items: center;
 }
 
+.diacriticsBtn {
+  padding: 8px;
+  color: var(--text-secondary);
+  font-size: 20px;
+  text-decoration: none;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diacriticsBtn:hover {
+  color: var(--accent);
+}
+
+.diacriticsIcon {
+  display: block;
+  font-weight: 700;
+}
+
 .syncBtn {
   padding: 8px;
   color: var(--text-secondary);
