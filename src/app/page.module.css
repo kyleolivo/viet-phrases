@@ -27,6 +27,27 @@
   color: var(--accent);
 }
 
+.headerButtons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.syncBtn {
+  padding: 8px;
+  color: var(--text-secondary);
+  font-size: 20px;
+  transition: color 0.2s;
+}
+
+.syncBtn:hover {
+  color: var(--accent);
+}
+
+.syncIcon {
+  display: block;
+}
+
 .listBtn {
   position: relative;
   padding: 8px;
@@ -289,4 +310,55 @@
   text-align: center;
   color: var(--text-secondary);
   padding: 48px 16px;
+}
+
+/* Sync key section */
+.syncKeySection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.syncKeyInfo {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.syncKeyDisplay {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.syncKeyCode {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 16px;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.copyBtn {
+  padding: 12px 20px;
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.copyBtn:hover {
+  background: var(--accent-dim);
+}
+
+.syncKeyInput {
+  display: flex;
+  gap: 8px;
 }
