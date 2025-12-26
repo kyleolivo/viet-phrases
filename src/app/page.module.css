@@ -252,6 +252,25 @@
   font-weight: 600;
 }
 
+.listHeaderActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.clearAllBtn {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #ff4444;
+  transition: background 0.2s;
+  border-radius: 6px;
+}
+
+.clearAllBtn:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
 .closeBtn {
   padding: 8px;
   font-size: 20px;
@@ -280,19 +299,44 @@
 .phraseItem {
   width: 100%;
   display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.phraseContent {
+  flex: 1;
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   padding: 12px;
   background: var(--bg-secondary);
   border-radius: 8px;
-  margin-bottom: 8px;
   text-align: left;
   transition: background 0.2s;
 }
 
-.phraseItem:hover {
+.phraseContent:hover {
   background: var(--bg-tertiary);
+}
+
+.deleteBtn {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+}
+
+.deleteBtn:hover {
+  background: rgba(255, 68, 68, 0.1);
+  color: #ff4444;
 }
 
 .phraseEnglish {
