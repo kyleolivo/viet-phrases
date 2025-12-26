@@ -177,8 +177,34 @@
   margin-bottom: 16px;
 }
 
-.expandBtn {
+.actionButtons {
+  display: flex;
+  gap: 8px;
   width: 100%;
+}
+
+.speakBtn {
+  flex: 1;
+  padding: 12px;
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.speakBtn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.speakBtn:active {
+  transform: translateY(0);
+}
+
+.expandBtn {
+  flex: 1;
   padding: 12px;
   background: var(--bg-tertiary);
   color: var(--text-primary);

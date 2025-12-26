@@ -40,6 +40,7 @@ export default function Home() {
   const [isSyncing, setIsSyncing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSlowSpeed, setIsSlowSpeed] = useState(false);
 
   // Initialize sync key and load phrases from backend
   useEffect(() => {
@@ -233,6 +234,22 @@ export default function Home() {
     }
   };
 
+  const handleSpeak = () => {
+    if (!currentPhrase) return;
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(currentPhrase.vietnamese);
+    utterance.lang = "vi-VN"; // Vietnamese language
+    utterance.rate = isSlowSpeed ? 0.6 : 1.0; // Toggle between normal and slow speed
+
+    window.speechSynthesis.speak(utterance);
+
+    // Toggle speed for next click
+    setIsSlowSpeed(!isSlowSpeed);
+  };
+
   const groupedPhrases = phrases.reduce((acc, phrase) => {
     if (!acc[phrase.category]) acc[phrase.category] = [];
     acc[phrase.category].push(phrase);
@@ -411,13 +428,23 @@ export default function Home() {
             <p className={styles.english}>{currentPhrase.english}</p>
             <p className={styles.vietnamese}>{currentPhrase.vietnamese}</p>
             <p className={styles.phonetic}>{currentPhrase.phonetic}</p>
-            <button
-              className={styles.expandBtn}
-              onClick={() => setShowLarge(true)}
-              aria-label="Show large"
-            >
-              Show Large
-            </button>
+            <div className={styles.actionButtons}>
+              <button
+                className={styles.speakBtn}
+                onClick={handleSpeak}
+                aria-label={`Speak at ${isSlowSpeed ? "normal" : "slow"} speed`}
+                title={`Click to hear at ${isSlowSpeed ? "normal" : "slow"} speed`}
+              >
+                🔊 {isSlowSpeed ? "Normal" : "Slow"}
+              </button>
+              <button
+                className={styles.expandBtn}
+                onClick={() => setShowLarge(true)}
+                aria-label="Show large"
+              >
+                Show Large
+              </button>
+            </div>
           </div>
         )}
 
