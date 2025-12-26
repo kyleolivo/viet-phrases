@@ -10,7 +10,17 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
+    // Diagnostic logging for debugging
+    console.log("[API Route] Environment check:", {
+      hasApiKey: !!apiKey,
+      apiKeyLength: apiKey?.length || 0,
+      nodeEnv: process.env.NODE_ENV,
+      // Log first/last 4 chars for verification (safe for debugging)
+      apiKeyPreview: apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'undefined'
+    });
+
     if (!apiKey) {
+      console.error("[API Route] ANTHROPIC_API_KEY is not set in environment");
       return NextResponse.json(
         { error: "API key not configured" },
         { status: 500 }
