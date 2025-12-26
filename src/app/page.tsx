@@ -432,10 +432,10 @@ export default function Home() {
               <button
                 className={styles.speakBtn}
                 onClick={handleSpeak}
-                aria-label={`Speak at ${isSlowSpeed ? "normal" : "slow"} speed`}
-                title={`Click to hear at ${isSlowSpeed ? "normal" : "slow"} speed`}
+                aria-label={`Speak at ${isSlowSpeed ? "slow" : "normal"} speed`}
+                title={`Click to hear at ${isSlowSpeed ? "slow" : "normal"} speed`}
               >
-                🔊 {isSlowSpeed ? "Normal" : "Slow"}
+                🔊 {isSlowSpeed ? "Slow" : "Normal"}
               </button>
               <button
                 className={styles.expandBtn}
