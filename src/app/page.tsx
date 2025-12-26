@@ -448,6 +448,24 @@ export default function Home() {
           </div>
         )}
 
+        {phrases.length > 0 && (
+          <div className={styles.recentSection}>
+            <h3 className={styles.recentTitle}>Recent Phrases</h3>
+            <div className={styles.recentList}>
+              {phrases.slice(0, 5).map((phrase) => (
+                <button
+                  key={phrase.id}
+                  className={styles.recentItem}
+                  onClick={() => setCurrentPhrase(phrase)}
+                >
+                  <span className={styles.recentEnglish}>{phrase.english}</span>
+                  <span className={styles.recentVietnamese}>{phrase.vietnamese}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className={styles.hint}>
           <p>Type what you want to say in English</p>
         </div>
