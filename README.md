@@ -7,6 +7,7 @@ A mobile-first web app for learning Vietnamese phrases on the go.
 - Ask for any phrase in English, get Vietnamese + phonetic pronunciation
 - Automatic saving and categorization
 - "Show Large" mode for showing phrases to others
+- Cross-device sync with shareable sync keys
 - Offline-capable (saved phrases work without internet)
 - PWA support - install on your phone's home screen
 
@@ -41,7 +42,15 @@ Open [http://localhost:3000](http://localhost:3000)
 1. Push to GitHub
 2. Connect repo to Vercel
 3. Add `ANTHROPIC_API_KEY` as an environment variable in Vercel dashboard
-4. Deploy
+4. Add Redis storage from Marketplace:
+   - Go to Marketplace in your Vercel dashboard
+   - Search for and add Redis
+   - Connect it to your project
+   - Redis environment variables (REDIS_URL) will be automatically added
+5. Deploy
+6. (Optional) To test locally:
+   - Run `vercel link` to link your local project
+   - Run `vercel env pull .env.development.local` to get environment variables
 
 ## Usage
 
@@ -50,6 +59,10 @@ Open [http://localhost:3000](http://localhost:3000)
 3. Tap "Show Large" to display for someone to read
 4. All phrases auto-save and are categorized
 5. Tap the menu icon to browse saved phrases
+6. Tap the cloud icon to view your sync key and sync across devices:
+   - Copy your sync key to share across your devices
+   - Enter a sync key on a new device to load your phrases there
+   - All changes sync automatically in the background
 
 ## Roadmap
 
