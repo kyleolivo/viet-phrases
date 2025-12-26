@@ -42,12 +42,15 @@ Open [http://localhost:3000](http://localhost:3000)
 1. Push to GitHub
 2. Connect repo to Vercel
 3. Add `ANTHROPIC_API_KEY` as an environment variable in Vercel dashboard
-4. Add Vercel KV storage:
-   - Go to Storage tab in your Vercel project
-   - Click "Create Database" → "KV"
-   - Follow the setup wizard (free tier available)
-   - KV environment variables will be automatically added to your project
+4. Add Redis storage from Marketplace:
+   - Go to Marketplace in your Vercel dashboard
+   - Search for and add Redis
+   - Connect it to your project
+   - Redis environment variables (REDIS_URL) will be automatically added
 5. Deploy
+6. (Optional) To test locally:
+   - Run `vercel link` to link your local project
+   - Run `vercel env pull .env.development.local` to get environment variables
 
 ## Usage
 

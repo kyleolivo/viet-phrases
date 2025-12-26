@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { createClient } from "redis";
+
+// Create Redis client with connection pooling for serverless
+let redisClient: ReturnType<typeof createClient> | null = null;
+
+async function getRedisClient() {
+  if (!redisClient) {
+    redisClient = createClient({
+      url: process.env.REDIS_URL,
+    });
+
+    redisClient.on('error', (err) => console.error('Redis Client Error', err));
+
+    await redisClient.connect();
+  }
+
+  return redisClient;
+}
 
 // GET /api/phrases?syncKey=xxx - Load phrases for a sync key
 export async function GET(request: NextRequest) {
@@ -13,11 +30,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Retrieve phrases from KV store
-    const phrases = await kv.get(`phrases:${syncKey}`);
+    const redis = await getRedisClient();
+
+    // Retrieve phrases from Redis
+    const data = await redis.get(`phrases:${syncKey}`);
+    const phrases = data ? JSON.parse(data) : [];
 
     return NextResponse.json({
-      phrases: phrases || [],
+      phrases,
     });
   } catch (error) {
     console.error("Error loading phrases:", error);
@@ -47,8 +67,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Save phrases to KV store
-    await kv.set(`phrases:${syncKey}`, phrases);
+    const redis = await getRedisClient();
+
+    // Save phrases to Redis (serialize to JSON)
+    await redis.set(`phrases:${syncKey}`, JSON.stringify(phrases));
 
     return NextResponse.json({ success: true });
   } catch (error) {
