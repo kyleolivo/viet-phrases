@@ -79,7 +79,14 @@ Respond in this exact JSON format only, no other text:
     }
 
     // Parse the JSON response from Claude
-    const parsed = JSON.parse(content);
+    // Strip markdown code fences if present
+    let jsonContent = content.trim();
+    if (jsonContent.startsWith('```')) {
+      // Remove opening ```json or ``` and closing ```
+      jsonContent = jsonContent.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonContent);
 
     return NextResponse.json({
       vietnamese: parsed.vietnamese,
