@@ -201,6 +201,37 @@ export default function Home() {
     alert("Sync key copied! Use it on your other devices.");
   };
 
+  const handleDeletePhrase = (phraseId: string, phraseName: string) => {
+    if (confirm(`Delete "${phraseName}"?`)) {
+      setPhrases((prev) => prev.filter((p) => p.id !== phraseId));
+      // Clear current phrase if it was deleted
+      if (currentPhrase?.id === phraseId) {
+        setCurrentPhrase(null);
+      }
+    }
+  };
+
+  const handleClearAll = () => {
+    if (phrases.length === 0) return;
+
+    if (confirm(`Delete all ${phrases.length} phrases? This cannot be undone.`)) {
+      setPhrases([]);
+      setCurrentPhrase(null);
+      localStorage.setItem("viet-phrases", JSON.stringify([]));
+
+      // Sync empty state to backend
+      if (syncKey) {
+        fetch("/api/phrases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ syncKey, phrases: [] }),
+        }).catch((error) => {
+          console.error("Error syncing clear all:", error);
+        });
+      }
+    }
+  };
+
   const groupedPhrases = phrases.reduce((acc, phrase) => {
     if (!acc[phrase.category]) acc[phrase.category] = [];
     acc[phrase.category].push(phrase);
@@ -271,26 +302,44 @@ export default function Home() {
         <div className={styles.listView}>
           <div className={styles.listHeader}>
             <h2>Saved Phrases</h2>
-            <button onClick={() => setShowList(false)} className={styles.closeBtn}>
-              ✕
-            </button>
+            <div className={styles.listHeaderActions}>
+              {phrases.length > 0 && (
+                <button onClick={handleClearAll} className={styles.clearAllBtn}>
+                  Clear All
+                </button>
+              )}
+              <button onClick={() => setShowList(false)} className={styles.closeBtn}>
+                ✕
+              </button>
+            </div>
           </div>
           <div className={styles.listContent}>
             {Object.entries(groupedPhrases).map(([category, categoryPhrases]) => (
               <div key={category} className={styles.category}>
                 <h3 className={styles.categoryTitle}>{category}</h3>
                 {categoryPhrases.map((phrase) => (
-                  <button
-                    key={phrase.id}
-                    className={styles.phraseItem}
-                    onClick={() => {
-                      setCurrentPhrase(phrase);
-                      setShowList(false);
-                    }}
-                  >
-                    <span className={styles.phraseEnglish}>{phrase.english}</span>
-                    <span className={styles.phraseVietnamese}>{phrase.vietnamese}</span>
-                  </button>
+                  <div key={phrase.id} className={styles.phraseItem}>
+                    <button
+                      className={styles.phraseContent}
+                      onClick={() => {
+                        setCurrentPhrase(phrase);
+                        setShowList(false);
+                      }}
+                    >
+                      <span className={styles.phraseEnglish}>{phrase.english}</span>
+                      <span className={styles.phraseVietnamese}>{phrase.vietnamese}</span>
+                    </button>
+                    <button
+                      className={styles.deleteBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePhrase(phrase.id, phrase.english);
+                      }}
+                      aria-label="Delete phrase"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ))}
               </div>
             ))}
