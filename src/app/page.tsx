@@ -476,7 +476,7 @@ export default function Home() {
             aria-label={isRecording ? "Stop recording" : "Start voice input"}
             title={isRecording ? "Stop recording" : "Start voice input"}
           >
-            {isRecording ? "⏹" : "🎤"}
+            {isRecording ? "■" : "○"}
           </button>
           <button
             type="submit"
@@ -499,7 +499,7 @@ export default function Home() {
                 aria-label={`Speak at ${isSlowSpeed ? "slow" : "normal"} speed`}
                 title={`Click to hear at ${isSlowSpeed ? "slow" : "normal"} speed`}
               >
-                🔊 {isSlowSpeed ? "Slow" : "Normal"}
+                ▶ {isSlowSpeed ? "Slow" : "Normal"}
               </button>
               <button
                 className={styles.expandBtn}
