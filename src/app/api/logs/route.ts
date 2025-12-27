@@ -2,19 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getLogsByIp, getLogsByUser, getLogsByTimeRange } from "@/lib/logger";
 
 /**
- * API endpoint to query request logs
+ * API endpoint to query request logs from Axiom
  *
  * Query parameters:
  * - ip: Query logs by IP address
  * - user: Query logs by user ID (sync key)
- * - startTime: Start timestamp for time range query (milliseconds since epoch)
- * - endTime: End timestamp for time range query (milliseconds since epoch)
+ * - startTime: Start timestamp for time range query (ISO 8601 string or milliseconds since epoch)
+ * - endTime: End timestamp for time range query (ISO 8601 string or milliseconds since epoch)
  * - limit: Maximum number of logs to return (default varies by query type)
  *
  * Examples:
  * - /api/logs?ip=192.168.1.1&limit=50
  * - /api/logs?user=mysynkey123&limit=100
+ * - /api/logs?startTime=2025-01-01T00:00:00Z&endTime=2025-01-02T00:00:00Z
  * - /api/logs?startTime=1640000000000&endTime=1640086400000
+ *
+ * Note: Requires AXIOM_TOKEN and AXIOM_DATASET environment variables to be set.
+ * Configure a Vercel Log Drain to send logs to Axiom for this endpoint to work.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -48,14 +52,17 @@ export async function GET(request: NextRequest) {
 
     // Query by time range
     if (startTimeStr && endTimeStr) {
-      const startTime = parseInt(startTimeStr, 10);
-      const endTime = parseInt(endTimeStr, 10);
+      // Convert to ISO 8601 if milliseconds since epoch
+      let startTime = startTimeStr;
+      let endTime = endTimeStr;
 
-      if (isNaN(startTime) || isNaN(endTime)) {
-        return NextResponse.json(
-          { error: "Invalid timestamp format" },
-          { status: 400 }
-        );
+      // Check if input is a number (milliseconds)
+      const startMs = parseInt(startTimeStr, 10);
+      const endMs = parseInt(endTimeStr, 10);
+
+      if (!isNaN(startMs) && !isNaN(endMs)) {
+        startTime = new Date(startMs).toISOString();
+        endTime = new Date(endMs).toISOString();
       }
 
       const logs = await getLogsByTimeRange(startTime, endTime, limit);
@@ -73,8 +80,10 @@ export async function GET(request: NextRequest) {
         examples: [
           "/api/logs?ip=192.168.1.1&limit=50",
           "/api/logs?user=mysynkey123&limit=100",
+          "/api/logs?startTime=2025-01-01T00:00:00Z&endTime=2025-01-02T00:00:00Z",
           "/api/logs?startTime=1640000000000&endTime=1640086400000",
         ],
+        setup: "Configure AXIOM_TOKEN and AXIOM_DATASET environment variables, and set up a Vercel Log Drain to Axiom.",
       },
       { status: 400 }
     );

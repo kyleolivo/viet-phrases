@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createClient } from "redis";
+import { Axiom } from "@axiomhq/js";
 
 export interface RequestLogData {
   timestamp: string;
@@ -13,20 +13,20 @@ export interface RequestLogData {
   error?: string;
 }
 
-let redisClient: ReturnType<typeof createClient> | null = null;
+let axiomClient: Axiom | null = null;
 
-async function getRedisClient() {
-  if (!redisClient) {
-    redisClient = createClient({
-      url: process.env.REDIS_URL,
-    });
-
-    redisClient.on('error', (err) => console.error('Redis Logger Client Error', err));
-
-    await redisClient.connect();
+function getAxiomClient(): Axiom | null {
+  if (!process.env.AXIOM_TOKEN || !process.env.AXIOM_DATASET) {
+    return null;
   }
 
-  return redisClient;
+  if (!axiomClient) {
+    axiomClient = new Axiom({
+      token: process.env.AXIOM_TOKEN,
+    });
+  }
+
+  return axiomClient;
 }
 
 /**
@@ -54,9 +54,9 @@ export function getClientIp(request: NextRequest): string {
 
 /**
  * Logs a request with all relevant tracking information.
- * Persists to both console and Redis for durability.
+ * Logs to console in structured JSON format for ingestion by Vercel Log Drains.
  */
-export async function logRequest(data: RequestLogData): Promise<void> {
+export function logRequest(data: RequestLogData): void {
   const logEntry = {
     timestamp: data.timestamp,
     method: data.method,
@@ -65,63 +65,13 @@ export async function logRequest(data: RequestLogData): Promise<void> {
     userAgent: data.userAgent,
     ...(data.userId && { userId: data.userId }),
     ...(data.statusCode && { status: data.statusCode }),
-    ...(data.duration !== undefined && { duration: `${data.duration}ms` }),
+    ...(data.duration !== undefined && { duration: data.duration }),
     ...(data.error && { error: data.error }),
   };
 
-  const logString = JSON.stringify(logEntry);
-
-  // Log to console in a structured format for immediate visibility
-  console.log('[REQUEST]', logString);
-
-  // Persist to Redis for historical analysis
-  try {
-    const redis = await getRedisClient();
-    const timestamp = new Date(data.timestamp).getTime();
-
-    // Store in a global sorted set by timestamp (score)
-    // This allows querying logs by time range
-    await redis.zAdd('logs:all', {
-      score: timestamp,
-      value: logString,
-    });
-
-    // Store in IP-specific sorted set for tracking individual users
-    await redis.zAdd(`logs:ip:${data.ipAddress}`, {
-      score: timestamp,
-      value: logString,
-    });
-
-    // If userId is provided, also store in user-specific sorted set
-    if (data.userId) {
-      await redis.zAdd(`logs:user:${data.userId}`, {
-        score: timestamp,
-        value: logString,
-      });
-    }
-
-    // Set expiration on the global log (keep logs for 30 days)
-    await redis.expire('logs:all', 30 * 24 * 60 * 60);
-
-    // Set expiration on IP-specific logs (keep for 30 days)
-    await redis.expire(`logs:ip:${data.ipAddress}`, 30 * 24 * 60 * 60);
-
-    // Set expiration on user-specific logs (keep for 30 days)
-    if (data.userId) {
-      await redis.expire(`logs:user:${data.userId}`, 30 * 24 * 60 * 60);
-    }
-
-    // Keep only the most recent 100,000 entries in the global log to prevent unbounded growth
-    const globalCount = await redis.zCard('logs:all');
-    if (globalCount > 100000) {
-      // Remove oldest entries, keeping only the most recent 100,000
-      await redis.zRemRangeByRank('logs:all', 0, globalCount - 100001);
-    }
-
-  } catch (error) {
-    // If Redis logging fails, continue - don't block the request
-    console.error('Failed to persist log to Redis:', error);
-  }
+  // Log to console in structured JSON format
+  // This will be captured by Vercel Log Drains and sent to Axiom
+  console.log(JSON.stringify({ type: 'request', ...logEntry }));
 }
 
 /**
@@ -141,9 +91,9 @@ export function createRequestLogger(request: NextRequest) {
     /**
      * Logs the completion of a request
      */
-    async logComplete(statusCode: number, userId?: string): Promise<void> {
+    logComplete(statusCode: number, userId?: string): void {
       const duration = Date.now() - startTime;
-      await logRequest({
+      logRequest({
         timestamp: new Date().toISOString(),
         method,
         path,
@@ -158,9 +108,9 @@ export function createRequestLogger(request: NextRequest) {
     /**
      * Logs a request that resulted in an error
      */
-    async logError(statusCode: number, error: string, userId?: string): Promise<void> {
+    logError(statusCode: number, error: string, userId?: string): void {
       const duration = Date.now() - startTime;
-      await logRequest({
+      logRequest({
         timestamp: new Date().toISOString(),
         method,
         path,
@@ -176,68 +126,94 @@ export function createRequestLogger(request: NextRequest) {
 }
 
 /**
- * Query logs from Redis by IP address
+ * Query logs from Axiom by IP address
  * @param ipAddress - The IP address to query logs for
  * @param limit - Maximum number of logs to return (default: 100)
  * @returns Array of log entries
  */
-export async function getLogsByIp(ipAddress: string, limit: number = 100): Promise<RequestLogData[]> {
+export async function getLogsByIp(ipAddress: string, limit: number = 100): Promise<any[]> {
+  const axiom = getAxiomClient();
+  if (!axiom) {
+    console.error('Axiom client not configured. Set AXIOM_TOKEN and AXIOM_DATASET environment variables.');
+    return [];
+  }
+
   try {
-    const redis = await getRedisClient();
+    const dataset = process.env.AXIOM_DATASET!;
 
-    // Get the most recent logs for this IP (sorted in descending order)
-    const logs = await redis.zRange(`logs:ip:${ipAddress}`, -limit, -1, { REV: true });
+    // Query Axiom using APL (Axiom Processing Language)
+    const result = await axiom.query(
+      `${dataset} | where type == "request" and ip == "${ipAddress}" | order by _time desc | limit ${limit}`
+    );
 
-    return logs.map(log => JSON.parse(log));
+    return result.matches || [];
   } catch (error) {
-    console.error('Failed to query logs from Redis:', error);
+    console.error('Failed to query logs from Axiom:', error);
     return [];
   }
 }
 
 /**
- * Query logs from Redis by user ID (sync key)
+ * Query logs from Axiom by user ID (sync key)
  * @param userId - The user ID (sync key) to query logs for
  * @param limit - Maximum number of logs to return (default: 100)
  * @returns Array of log entries
  */
-export async function getLogsByUser(userId: string, limit: number = 100): Promise<RequestLogData[]> {
+export async function getLogsByUser(userId: string, limit: number = 100): Promise<any[]> {
+  const axiom = getAxiomClient();
+  if (!axiom) {
+    console.error('Axiom client not configured. Set AXIOM_TOKEN and AXIOM_DATASET environment variables.');
+    return [];
+  }
+
   try {
-    const redis = await getRedisClient();
+    const dataset = process.env.AXIOM_DATASET!;
 
-    // Get the most recent logs for this user (sorted in descending order)
-    const logs = await redis.zRange(`logs:user:${userId}`, -limit, -1, { REV: true });
+    // Query Axiom using APL (Axiom Processing Language)
+    const result = await axiom.query(
+      `${dataset} | where type == "request" and userId == "${userId}" | order by _time desc | limit ${limit}`
+    );
 
-    return logs.map(log => JSON.parse(log));
+    return result.matches || [];
   } catch (error) {
-    console.error('Failed to query logs from Redis:', error);
+    console.error('Failed to query logs from Axiom:', error);
     return [];
   }
 }
 
 /**
- * Query all logs from Redis within a time range
- * @param startTime - Start timestamp (milliseconds since epoch)
- * @param endTime - End timestamp (milliseconds since epoch)
+ * Query all logs from Axiom within a time range
+ * @param startTime - Start timestamp (ISO 8601 string)
+ * @param endTime - End timestamp (ISO 8601 string)
  * @param limit - Maximum number of logs to return (default: 1000)
  * @returns Array of log entries
  */
 export async function getLogsByTimeRange(
-  startTime: number,
-  endTime: number,
+  startTime: string,
+  endTime: string,
   limit: number = 1000
-): Promise<RequestLogData[]> {
+): Promise<any[]> {
+  const axiom = getAxiomClient();
+  if (!axiom) {
+    console.error('Axiom client not configured. Set AXIOM_TOKEN and AXIOM_DATASET environment variables.');
+    return [];
+  }
+
   try {
-    const redis = await getRedisClient();
+    const dataset = process.env.AXIOM_DATASET!;
 
-    // Get logs within the time range
-    const logs = await redis.zRangeByScore('logs:all', startTime, endTime, {
-      LIMIT: { offset: 0, count: limit }
-    });
+    // Query Axiom using APL with time range
+    const result = await axiom.query(
+      `${dataset} | where type == "request" and _time >= datetime("${startTime}") and _time <= datetime("${endTime}") | order by _time desc | limit ${limit}`,
+      {
+        startTime,
+        endTime,
+      }
+    );
 
-    return logs.map(log => JSON.parse(log));
+    return result.matches || [];
   } catch (error) {
-    console.error('Failed to query logs from Redis:', error);
+    console.error('Failed to query logs from Axiom:', error);
     return [];
   }
 }
