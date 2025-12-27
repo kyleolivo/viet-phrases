@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRequestLogger, getClientIp } from "@/lib/logger";
 
 const rateLimit = new Map<string, { count: number; resetTime: number }>();
 
@@ -20,9 +21,11 @@ function checkRateLimit(identifier: string, maxRequests = 20, windowMs = 60000):
 }
 
 export async function POST(request: NextRequest) {
-  const identifier = request.headers.get("x-forwarded-for") || "unknown";
+  const logger = createRequestLogger(request);
+  const identifier = getClientIp(request);
 
   if (!checkRateLimit(identifier)) {
+    logger.logError(429, "Rate limit exceeded");
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429 }
@@ -33,20 +36,24 @@ export async function POST(request: NextRequest) {
     const { text } = await request.json();
 
     if (!text || typeof text !== "string") {
+      logger.logError(400, "Text is required");
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
     if (text.trim().length === 0) {
+      logger.logError(400, "Text cannot be empty");
       return NextResponse.json({ error: "Text cannot be empty" }, { status: 400 });
     }
 
     if (text.length > 500) {
+      logger.logError(400, "Text is too long");
       return NextResponse.json({ error: "Text is too long (max 500 characters)" }, { status: 400 });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
+      logger.logError(500, "API key not configured");
       return NextResponse.json(
         { error: "API key not configured" },
         { status: 500 }
@@ -88,6 +95,7 @@ Respond in this exact JSON format only, no other text:
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Anthropic API error:", errorText);
+      logger.logError(500, "Translation service error");
       return NextResponse.json(
         { error: "Translation service error" },
         { status: 500 }
@@ -98,6 +106,7 @@ Respond in this exact JSON format only, no other text:
     const content = data.content[0]?.text;
 
     if (!content) {
+      logger.logError(500, "No translation received");
       return NextResponse.json(
         { error: "No translation received" },
         { status: 500 }
@@ -114,6 +123,7 @@ Respond in this exact JSON format only, no other text:
 
     const parsed = JSON.parse(jsonContent);
 
+    logger.logComplete(200);
     return NextResponse.json({
       vietnamese: parsed.vietnamese,
       phonetic: parsed.phonetic,
@@ -121,6 +131,7 @@ Respond in this exact JSON format only, no other text:
     });
   } catch (error) {
     console.error("Translation error:", error);
+    logger.logError(500, error instanceof Error ? error.message : "Translation failed");
     return NextResponse.json(
       { error: "Translation failed" },
       { status: 500 }

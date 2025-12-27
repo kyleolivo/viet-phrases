@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "redis";
+import { createRequestLogger, getClientIp } from "@/lib/logger";
 
 const rateLimit = new Map<string, { count: number; resetTime: number }>();
 
@@ -37,9 +38,11 @@ async function getRedisClient() {
 }
 
 export async function GET(request: NextRequest) {
-  const identifier = request.headers.get("x-forwarded-for") || "unknown";
+  const logger = createRequestLogger(request);
+  const identifier = getClientIp(request);
 
   if (!checkRateLimit(identifier)) {
+    logger.logError(429, "Rate limit exceeded");
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429 }
@@ -50,6 +53,7 @@ export async function GET(request: NextRequest) {
     const syncKey = request.nextUrl.searchParams.get("syncKey");
 
     if (!syncKey || typeof syncKey !== "string") {
+      logger.logError(400, "Sync key is required");
       return NextResponse.json(
         { error: "Sync key is required" },
         { status: 400 }
@@ -57,6 +61,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!/^[a-zA-Z0-9]{6,32}$/.test(syncKey)) {
+      logger.logError(400, "Invalid sync key format", syncKey);
       return NextResponse.json(
         { error: "Invalid sync key format" },
         { status: 400 }
@@ -69,11 +74,14 @@ export async function GET(request: NextRequest) {
     const data = await redis.get(`phrases:${syncKey}`);
     const phrases = data ? JSON.parse(data) : [];
 
+    logger.logComplete(200, syncKey);
     return NextResponse.json({
       phrases,
     });
   } catch (error) {
     console.error("Error loading phrases:", error);
+    const syncKey = request.nextUrl.searchParams.get("syncKey") || undefined;
+    logger.logError(500, error instanceof Error ? error.message : "Failed to load phrases", syncKey);
     return NextResponse.json(
       { error: "Failed to load phrases" },
       { status: 500 }
@@ -82,19 +90,26 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const identifier = request.headers.get("x-forwarded-for") || "unknown";
+  const logger = createRequestLogger(request);
+  const identifier = getClientIp(request);
 
   if (!checkRateLimit(identifier)) {
+    logger.logError(429, "Rate limit exceeded");
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429 }
     );
   }
 
+  let syncKey: string | undefined;
+
   try {
-    const { syncKey, phrases } = await request.json();
+    const body = await request.json();
+    syncKey = body.syncKey;
+    const phrases = body.phrases;
 
     if (!syncKey || typeof syncKey !== "string") {
+      logger.logError(400, "Sync key is required");
       return NextResponse.json(
         { error: "Sync key is required" },
         { status: 400 }
@@ -102,6 +117,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!/^[a-zA-Z0-9]{6,32}$/.test(syncKey)) {
+      logger.logError(400, "Invalid sync key format", syncKey);
       return NextResponse.json(
         { error: "Invalid sync key format" },
         { status: 400 }
@@ -109,6 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!Array.isArray(phrases)) {
+      logger.logError(400, "Phrases must be an array", syncKey);
       return NextResponse.json(
         { error: "Phrases must be an array" },
         { status: 400 }
@@ -116,6 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (phrases.length > 10000) {
+      logger.logError(400, "Too many phrases", syncKey);
       return NextResponse.json(
         { error: "Too many phrases (max 10000)" },
         { status: 400 }
@@ -127,9 +145,11 @@ export async function POST(request: NextRequest) {
     // Save phrases to Redis (serialize to JSON)
     await redis.set(`phrases:${syncKey}`, JSON.stringify(phrases));
 
+    logger.logComplete(200, syncKey);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error saving phrases:", error);
+    logger.logError(500, error instanceof Error ? error.message : "Failed to save phrases", syncKey);
     return NextResponse.json(
       { error: "Failed to save phrases" },
       { status: 500 }
