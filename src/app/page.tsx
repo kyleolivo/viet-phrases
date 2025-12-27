@@ -283,24 +283,57 @@ export default function Home() {
     // Start recording
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    // Use continuous mode on macOS Safari to prevent quick timeouts
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
+
+    let finalTranscript = '';
+    let timeoutId: NodeJS.Timeout | null = null;
 
     recognition.onstart = () => {
       console.log('Speech recognition started');
       setIsRecording(true);
+      // Auto-stop after 10 seconds if nothing is detected
+      timeoutId = setTimeout(() => {
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+        }
+      }, 10000);
     };
 
     recognition.onresult = (event: any) => {
       console.log('Speech recognition result received:', event);
 
-      if (event.results && event.results.length > 0) {
-        const transcript = event.results[0][0].transcript;
-        console.log('Transcript:', transcript);
-        setInput(transcript);
-      } else {
-        console.error('No results found in speech recognition event');
+      // Clear timeout since we got a result
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      let interimTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      // If we have a final result, use it and stop
+      if (finalTranscript.trim()) {
+        console.log('Final transcript:', finalTranscript.trim());
+        setInput(finalTranscript.trim());
+        // Stop recognition after getting final result
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+        }
+      } else if (interimTranscript) {
+        console.log('Interim transcript:', interimTranscript);
+        // Optionally update input with interim results for better UX
+        setInput(interimTranscript);
       }
     };
 
@@ -308,14 +341,28 @@ export default function Home() {
       console.error("Speech recognition error:", event.error, event);
       setIsRecording(false);
 
+      // Clear timeout on error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
       if (event.error === "no-speech") {
-        alert("No speech detected. Please try again.");
+        alert("No speech detected. Please try speaking clearly into your microphone.");
       } else if (event.error === "not-allowed" || event.error === "permission-denied") {
         alert("Microphone access denied. Please allow microphone access in your browser settings and system preferences.");
       } else if (event.error === "network") {
         alert("Network error. Speech recognition requires an internet connection.");
       } else if (event.error === "aborted") {
-        console.log("Speech recognition was aborted");
+        // On macOS Safari, "aborted" with "No speech detected" is common
+        // Don't show an alert, just log it - user can try again
+        console.log("Speech recognition was aborted:", event.message);
+        if (event.message && event.message.includes("No speech")) {
+          // Only show alert if we haven't captured anything
+          if (!finalTranscript.trim()) {
+            alert("No speech detected. Please try speaking sooner after clicking the microphone button.");
+          }
+        }
       } else {
         alert(`Speech recognition error: ${event.error}. Please try again.`);
       }
@@ -325,6 +372,11 @@ export default function Home() {
       console.log('Speech recognition ended');
       setIsRecording(false);
       recognitionRef.current = null;
+
+      // Clear timeout on end
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
 
     recognitionRef.current = recognition;
