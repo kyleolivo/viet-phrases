@@ -21,11 +21,9 @@ interface TranslationResponse {
   category: string;
 }
 
-// Generate a random sync key
 function generateSyncKey(): string {
-  return Array.from({ length: 8 }, () =>
-    Math.random().toString(36)[2]
-  ).join("");
+  const uuid = crypto.randomUUID();
+  return uuid.replace(/-/g, "").slice(0, 8);
 }
 
 export default function Home() {
@@ -63,12 +61,10 @@ export default function Home() {
           if (data.phrases && data.phrases.length > 0) {
             setPhrases(data.phrases);
           } else {
-            // Fallback to localStorage if backend has no data
             const saved = localStorage.getItem("viet-phrases");
             if (saved) {
               const localPhrases = JSON.parse(saved);
               setPhrases(localPhrases);
-              // Sync local phrases to backend
               if (localPhrases.length > 0) {
                 await fetch("/api/phrases", {
                   method: "POST",
@@ -81,7 +77,6 @@ export default function Home() {
         }
       } catch (error) {
         console.error("Error loading phrases:", error);
-        // Fallback to localStorage on error
         const saved = localStorage.getItem("viet-phrases");
         if (saved) {
           setPhrases(JSON.parse(saved));
@@ -92,13 +87,10 @@ export default function Home() {
     loadPhrases();
   }, []);
 
-  // Save phrases to both localStorage and backend when they change
   useEffect(() => {
     if (phrases.length > 0 && syncKey) {
-      // Save to localStorage immediately
       localStorage.setItem("viet-phrases", JSON.stringify(phrases));
 
-      // Debounce backend sync to avoid too many requests
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
@@ -124,7 +116,6 @@ export default function Home() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    // Check if we already have this phrase
     const existing = phrases.find(
       (p) => p.english.toLowerCase() === input.trim().toLowerCase()
     );
@@ -163,7 +154,6 @@ export default function Home() {
       setInput("");
     } catch (error) {
       console.error("Translation error:", error);
-      // For now, show a mock response if API fails
       const mockPhrase: Phrase = {
         id: crypto.randomUUID(),
         english: input.trim(),
@@ -208,7 +198,6 @@ export default function Home() {
   const handleDeletePhrase = (phraseId: string, phraseName: string) => {
     if (confirm(`Delete "${phraseName}"?`)) {
       setPhrases((prev) => prev.filter((p) => p.id !== phraseId));
-      // Clear current phrase if it was deleted
       if (currentPhrase?.id === phraseId) {
         setCurrentPhrase(null);
       }
@@ -239,21 +228,18 @@ export default function Home() {
   const handleSpeak = () => {
     if (!currentPhrase) return;
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(currentPhrase.vietnamese);
-    utterance.lang = "vi-VN"; // Vietnamese language
-    utterance.rate = isSlowSpeed ? 0.6 : 1.0; // Toggle between normal and slow speed
+    utterance.lang = "vi-VN";
+    utterance.rate = isSlowSpeed ? 0.6 : 1.0;
 
     window.speechSynthesis.speak(utterance);
 
-    // Toggle speed for next click
     setIsSlowSpeed(!isSlowSpeed);
   };
 
   const handleVoiceInput = () => {
-    // Check if browser supports speech recognition
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
@@ -268,7 +254,6 @@ export default function Home() {
     }
 
     if (isRecording) {
-      // Stop recording
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -280,7 +265,6 @@ export default function Home() {
       return;
     }
 
-    // Start recording
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     // Use continuous mode on macOS Safari to prevent quick timeouts
@@ -292,9 +276,7 @@ export default function Home() {
     let timeoutId: NodeJS.Timeout | null = null;
 
     recognition.onstart = () => {
-      console.log('Speech recognition started');
       setIsRecording(true);
-      // Auto-stop after 10 seconds if nothing is detected
       timeoutId = setTimeout(() => {
         if (recognitionRef.current) {
           recognitionRef.current.stop();
@@ -303,9 +285,6 @@ export default function Home() {
     };
 
     recognition.onresult = (event: any) => {
-      console.log('Speech recognition result received:', event);
-
-      // Clear timeout since we got a result
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
@@ -322,17 +301,12 @@ export default function Home() {
         }
       }
 
-      // If we have a final result, use it and stop
       if (finalTranscript.trim()) {
-        console.log('Final transcript:', finalTranscript.trim());
         setInput(finalTranscript.trim());
-        // Stop recognition after getting final result
         if (recognitionRef.current) {
           recognitionRef.current.stop();
         }
       } else if (interimTranscript) {
-        console.log('Interim transcript:', interimTranscript);
-        // Optionally update input with interim results for better UX
         setInput(interimTranscript);
       }
     };
@@ -341,7 +315,6 @@ export default function Home() {
       console.error("Speech recognition error:", event.error, event);
       setIsRecording(false);
 
-      // Clear timeout on error
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
@@ -354,11 +327,7 @@ export default function Home() {
       } else if (event.error === "network") {
         alert("Network error. Speech recognition requires an internet connection.");
       } else if (event.error === "aborted") {
-        // On macOS Safari, "aborted" with "No speech detected" is common
-        // Don't show an alert, just log it - user can try again
-        console.log("Speech recognition was aborted:", event.message);
         if (event.message && event.message.includes("No speech")) {
-          // Only show alert if we haven't captured anything
           if (!finalTranscript.trim()) {
             alert("No speech detected. Please try speaking sooner after clicking the microphone button.");
           }
@@ -369,11 +338,9 @@ export default function Home() {
     };
 
     recognition.onend = () => {
-      console.log('Speech recognition ended');
       setIsRecording(false);
       recognitionRef.current = null;
 
-      // Clear timeout on end
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -383,7 +350,6 @@ export default function Home() {
 
     try {
       recognition.start();
-      console.log('Attempting to start speech recognition...');
     } catch (error) {
       console.error("Error starting speech recognition:", error);
       setIsRecording(false);

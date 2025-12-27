@@ -1,26 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const rateLimit = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(identifier: string, maxRequests = 20, windowMs = 60000): boolean {
+  const now = Date.now();
+  const record = rateLimit.get(identifier);
+
+  if (!record || now > record.resetTime) {
+    rateLimit.set(identifier, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= maxRequests) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
+  const identifier = request.headers.get("x-forwarded-for") || "unknown";
+
+  if (!checkRateLimit(identifier)) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+  }
+
   try {
     const { text } = await request.json();
 
-    if (!text) {
+    if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
+    }
+
+    if (text.trim().length === 0) {
+      return NextResponse.json({ error: "Text cannot be empty" }, { status: 400 });
+    }
+
+    if (text.length > 500) {
+      return NextResponse.json({ error: "Text is too long (max 500 characters)" }, { status: 400 });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
-    // Diagnostic logging for debugging
-    console.log("[API Route] Environment check:", {
-      hasApiKey: !!apiKey,
-      apiKeyLength: apiKey?.length || 0,
-      nodeEnv: process.env.NODE_ENV,
-      // Log first/last 4 chars for verification (safe for debugging)
-      apiKeyPreview: apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'undefined'
-    });
-
     if (!apiKey) {
-      console.error("[API Route] ANTHROPIC_API_KEY is not set in environment");
       return NextResponse.json(
         { error: "API key not configured" },
         { status: 500 }
