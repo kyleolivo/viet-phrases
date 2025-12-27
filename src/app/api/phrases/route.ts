@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "redis";
+import { auth } from "@clerk/nextjs/server";
 
 const rateLimit = new Map<string, { count: number; resetTime: number }>();
 
@@ -47,30 +48,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const syncKey = request.nextUrl.searchParams.get("syncKey");
+    const { userId } = await auth();
 
-    if (!syncKey || typeof syncKey !== "string") {
-      return NextResponse.json(
-        { error: "Sync key is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^[a-zA-Z0-9]{6,32}$/.test(syncKey)) {
-      return NextResponse.json(
-        { error: "Invalid sync key format" },
-        { status: 400 }
-      );
+    // For trial mode (no auth), return empty array
+    // Trial users store phrases locally only
+    if (!userId) {
+      return NextResponse.json({
+        phrases: [],
+        trialMode: true,
+      });
     }
 
     const redis = await getRedisClient();
 
-    // Retrieve phrases from Redis
-    const data = await redis.get(`phrases:${syncKey}`);
+    // Retrieve phrases from Redis using user ID
+    const data = await redis.get(`phrases:${userId}`);
     const phrases = data ? JSON.parse(data) : [];
 
     return NextResponse.json({
       phrases,
+      trialMode: false,
     });
   } catch (error) {
     console.error("Error loading phrases:", error);
@@ -92,20 +89,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { syncKey, phrases } = await request.json();
+    const { userId } = await auth();
+    const { phrases } = await request.json();
 
-    if (!syncKey || typeof syncKey !== "string") {
-      return NextResponse.json(
-        { error: "Sync key is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^[a-zA-Z0-9]{6,32}$/.test(syncKey)) {
-      return NextResponse.json(
-        { error: "Invalid sync key format" },
-        { status: 400 }
-      );
+    // For trial mode (no auth), don't save to backend
+    // Trial users store phrases locally only
+    if (!userId) {
+      return NextResponse.json({
+        success: true,
+        trialMode: true,
+      });
     }
 
     if (!Array.isArray(phrases)) {
@@ -124,10 +117,13 @@ export async function POST(request: NextRequest) {
 
     const redis = await getRedisClient();
 
-    // Save phrases to Redis (serialize to JSON)
-    await redis.set(`phrases:${syncKey}`, JSON.stringify(phrases));
+    // Save phrases to Redis using user ID
+    await redis.set(`phrases:${userId}`, JSON.stringify(phrases));
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      trialMode: false,
+    });
   } catch (error) {
     console.error("Error saving phrases:", error);
     return NextResponse.json(
