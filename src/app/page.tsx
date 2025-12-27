@@ -41,6 +41,8 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSlowSpeed, setIsSlowSpeed] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // Initialize sync key and load phrases from backend
   useEffect(() => {
@@ -250,6 +252,59 @@ export default function Home() {
     setIsSlowSpeed(!isSlowSpeed);
   };
 
+  const handleVoiceInput = () => {
+    // Check if browser supports speech recognition
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Sorry, your browser doesn't support speech recognition. Try using Chrome or Edge.");
+      return;
+    }
+
+    if (isRecording) {
+      // Stop recording
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsRecording(false);
+      return;
+    }
+
+    // Start recording
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setIsRecording(false);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsRecording(false);
+      if (event.error === "no-speech") {
+        alert("No speech detected. Please try again.");
+      } else if (event.error === "not-allowed") {
+        alert("Microphone access denied. Please allow microphone access in your browser settings.");
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   const groupedPhrases = phrases.reduce((acc, phrase) => {
     if (!acc[phrase.category]) acc[phrase.category] = [];
     acc[phrase.category].push(phrase);
@@ -414,6 +469,15 @@ export default function Home() {
             className={styles.input}
             autoComplete="off"
           />
+          <button
+            type="button"
+            onClick={handleVoiceInput}
+            className={`${styles.micBtn} ${isRecording ? styles.recording : ""}`}
+            aria-label={isRecording ? "Stop recording" : "Start voice input"}
+            title={isRecording ? "Stop recording" : "Start voice input"}
+          >
+            {isRecording ? "⏹" : "🎤"}
+          </button>
           <button
             type="submit"
             className={styles.submitBtn}
