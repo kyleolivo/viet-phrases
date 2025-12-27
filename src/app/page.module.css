@@ -125,12 +125,15 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 12px;
+  color: var(--accent);
+  font-weight: 600;
   transition: all 0.2s;
 }
 
 .micBtn:hover {
   background: var(--bg-tertiary);
   border-color: var(--accent);
+  color: var(--accent);
 }
 
 .micBtn.recording {
