@@ -261,10 +261,20 @@ export default function Home() {
       return;
     }
 
+    // Check for secure context (HTTPS or localhost) - required by Safari 26+
+    if (!window.isSecureContext) {
+      alert("Voice input requires a secure connection (HTTPS). Please access this app via HTTPS or localhost.");
+      return;
+    }
+
     if (isRecording) {
       // Stop recording
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.error("Error stopping speech recognition:", error);
+        }
       }
       setIsRecording(false);
       return;
@@ -278,6 +288,7 @@ export default function Home() {
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
+      console.log('Speech recognition started');
       setIsRecording(true);
     };
 
@@ -294,12 +305,19 @@ export default function Home() {
     };
 
     recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
+      console.error("Speech recognition error:", event.error, event);
       setIsRecording(false);
+
       if (event.error === "no-speech") {
         alert("No speech detected. Please try again.");
-      } else if (event.error === "not-allowed") {
-        alert("Microphone access denied. Please allow microphone access in your browser settings.");
+      } else if (event.error === "not-allowed" || event.error === "permission-denied") {
+        alert("Microphone access denied. Please allow microphone access in your browser settings and system preferences.");
+      } else if (event.error === "network") {
+        alert("Network error. Speech recognition requires an internet connection.");
+      } else if (event.error === "aborted") {
+        console.log("Speech recognition was aborted");
+      } else {
+        alert(`Speech recognition error: ${event.error}. Please try again.`);
       }
     };
 
@@ -310,7 +328,16 @@ export default function Home() {
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+
+    try {
+      recognition.start();
+      console.log('Attempting to start speech recognition...');
+    } catch (error) {
+      console.error("Error starting speech recognition:", error);
+      setIsRecording(false);
+      recognitionRef.current = null;
+      alert(`Failed to start voice input: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your microphone permissions.`);
+    }
   };
 
   const groupedPhrases = phrases.reduce((acc, phrase) => {
