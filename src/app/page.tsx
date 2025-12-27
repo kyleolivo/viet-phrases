@@ -282,9 +282,15 @@ export default function Home() {
     };
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      setIsRecording(false);
+      console.log('Speech recognition result received:', event);
+
+      if (event.results && event.results.length > 0) {
+        const transcript = event.results[0][0].transcript;
+        console.log('Transcript:', transcript);
+        setInput(transcript);
+      } else {
+        console.error('No results found in speech recognition event');
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -298,7 +304,9 @@ export default function Home() {
     };
 
     recognition.onend = () => {
+      console.log('Speech recognition ended');
       setIsRecording(false);
+      recognitionRef.current = null;
     };
 
     recognitionRef.current = recognition;
