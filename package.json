@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm install --prefer-offline --no-audit",
     "build": "next build",
     "start": "next start"
   },
