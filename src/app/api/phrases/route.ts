@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "redis";
 import { createRequestLogger, getClientIp } from "@/lib/logger";
+import { auth } from "@clerk/nextjs/server";
 
 const rateLimit = new Map<string, { count: number; resetTime: number }>();
 
@@ -50,38 +51,32 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const syncKey = request.nextUrl.searchParams.get("syncKey");
+    const { userId } = await auth();
 
-    if (!syncKey || typeof syncKey !== "string") {
-      logger.logError(400, "Sync key is required");
-      return NextResponse.json(
-        { error: "Sync key is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^[a-zA-Z0-9]{6,32}$/.test(syncKey)) {
-      logger.logError(400, "Invalid sync key format", syncKey);
-      return NextResponse.json(
-        { error: "Invalid sync key format" },
-        { status: 400 }
-      );
+    // For trial mode (no auth), return empty array
+    // Trial users store phrases locally only
+    if (!userId) {
+      logger.logComplete(200);
+      return NextResponse.json({
+        phrases: [],
+        trialMode: true,
+      });
     }
 
     const redis = await getRedisClient();
 
-    // Retrieve phrases from Redis
-    const data = await redis.get(`phrases:${syncKey}`);
+    // Retrieve phrases from Redis using user ID
+    const data = await redis.get(`phrases:${userId}`);
     const phrases = data ? JSON.parse(data) : [];
 
-    logger.logComplete(200, syncKey);
+    logger.logComplete(200, userId);
     return NextResponse.json({
       phrases,
+      trialMode: false,
     });
   } catch (error) {
     console.error("Error loading phrases:", error);
-    const syncKey = request.nextUrl.searchParams.get("syncKey") || undefined;
-    logger.logError(500, error instanceof Error ? error.message : "Failed to load phrases", syncKey);
+    logger.logError(500, error instanceof Error ? error.message : "Failed to load phrases");
     return NextResponse.json(
       { error: "Failed to load phrases" },
       { status: 500 }
@@ -101,31 +96,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let syncKey: string | undefined;
-
   try {
-    const body = await request.json();
-    syncKey = body.syncKey;
-    const phrases = body.phrases;
+    const { userId } = await auth();
+    const { phrases } = await request.json();
 
-    if (!syncKey || typeof syncKey !== "string") {
-      logger.logError(400, "Sync key is required");
-      return NextResponse.json(
-        { error: "Sync key is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^[a-zA-Z0-9]{6,32}$/.test(syncKey)) {
-      logger.logError(400, "Invalid sync key format", syncKey);
-      return NextResponse.json(
-        { error: "Invalid sync key format" },
-        { status: 400 }
-      );
+    // For trial mode (no auth), don't save to backend
+    // Trial users store phrases locally only
+    if (!userId) {
+      logger.logComplete(200);
+      return NextResponse.json({
+        success: true,
+        trialMode: true,
+      });
     }
 
     if (!Array.isArray(phrases)) {
-      logger.logError(400, "Phrases must be an array", syncKey);
+      logger.logError(400, "Phrases must be an array", userId);
       return NextResponse.json(
         { error: "Phrases must be an array" },
         { status: 400 }
@@ -133,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (phrases.length > 10000) {
-      logger.logError(400, "Too many phrases", syncKey);
+      logger.logError(400, "Too many phrases", userId);
       return NextResponse.json(
         { error: "Too many phrases (max 10000)" },
         { status: 400 }
@@ -142,14 +128,17 @@ export async function POST(request: NextRequest) {
 
     const redis = await getRedisClient();
 
-    // Save phrases to Redis (serialize to JSON)
-    await redis.set(`phrases:${syncKey}`, JSON.stringify(phrases));
+    // Save phrases to Redis using user ID
+    await redis.set(`phrases:${userId}`, JSON.stringify(phrases));
 
-    logger.logComplete(200, syncKey);
-    return NextResponse.json({ success: true });
+    logger.logComplete(200, userId);
+    return NextResponse.json({
+      success: true,
+      trialMode: false,
+    });
   } catch (error) {
     console.error("Error saving phrases:", error);
-    logger.logError(500, error instanceof Error ? error.message : "Failed to save phrases", syncKey);
+    logger.logError(500, error instanceof Error ? error.message : "Failed to save phrases");
     return NextResponse.json(
       { error: "Failed to save phrases" },
       { status: 500 }

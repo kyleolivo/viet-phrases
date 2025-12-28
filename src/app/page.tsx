@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useUser, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import styles from "./page.module.css";
 
 interface Phrase {
@@ -21,20 +22,17 @@ interface TranslationResponse {
   category: string;
 }
 
-function generateSyncKey(): string {
-  const uuid = crypto.randomUUID();
-  return uuid.replace(/-/g, "").slice(0, 8);
-}
+const TRIAL_PHRASE_LIMIT = 5;
 
 export default function Home() {
+  const { isSignedIn, user } = useUser();
   const [input, setInput] = useState("");
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [currentPhrase, setCurrentPhrase] = useState<Phrase | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showList, setShowList] = useState(false);
   const [showLarge, setShowLarge] = useState(false);
-  const [syncKey, setSyncKey] = useState<string>("");
-  const [showSyncKey, setShowSyncKey] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,42 +40,43 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Initialize sync key and load phrases from backend
+  // Load phrases on mount and when auth state changes
   useEffect(() => {
-    // Get or create sync key
-    let key = localStorage.getItem("viet-sync-key");
-    if (!key) {
-      key = generateSyncKey();
-      localStorage.setItem("viet-sync-key", key);
-    }
-    setSyncKey(key);
-
-    // Load phrases from backend
     const loadPhrases = async () => {
-      try {
-        const response = await fetch(`/api/phrases?syncKey=${key}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.phrases && data.phrases.length > 0) {
-            setPhrases(data.phrases);
-          } else {
-            const saved = localStorage.getItem("viet-phrases");
-            if (saved) {
-              const localPhrases = JSON.parse(saved);
-              setPhrases(localPhrases);
-              if (localPhrases.length > 0) {
+      if (isSignedIn) {
+        // Authenticated user: load from backend
+        try {
+          const response = await fetch("/api/phrases");
+          if (response.ok) {
+            const data = await response.json();
+
+            // Check if there are trial phrases to migrate
+            const trialPhrases = localStorage.getItem("viet-trial-phrases");
+            if (trialPhrases) {
+              const parsedTrialPhrases = JSON.parse(trialPhrases);
+              if (parsedTrialPhrases.length > 0 && data.phrases.length === 0) {
+                // Migrate trial phrases to authenticated account
+                setPhrases(parsedTrialPhrases);
                 await fetch("/api/phrases", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ syncKey: key, phrases: localPhrases }),
+                  body: JSON.stringify({ phrases: parsedTrialPhrases }),
                 });
+              } else {
+                setPhrases(data.phrases || []);
               }
+              // Clear trial phrases after migration
+              localStorage.removeItem("viet-trial-phrases");
+            } else {
+              setPhrases(data.phrases || []);
             }
           }
+        } catch (error) {
+          console.error("Error loading phrases:", error);
         }
-      } catch (error) {
-        console.error("Error loading phrases:", error);
-        const saved = localStorage.getItem("viet-phrases");
+      } else {
+        // Trial mode: load from local storage only
+        const saved = localStorage.getItem("viet-trial-phrases");
         if (saved) {
           setPhrases(JSON.parse(saved));
         }
@@ -85,32 +84,39 @@ export default function Home() {
     };
 
     loadPhrases();
-  }, []);
+  }, [isSignedIn]);
 
+  // Sync phrases to storage
   useEffect(() => {
-    if (phrases.length > 0 && syncKey) {
-      localStorage.setItem("viet-phrases", JSON.stringify(phrases));
+    if (phrases.length > 0) {
+      if (isSignedIn) {
+        // Authenticated: save to localStorage and sync to backend
+        localStorage.setItem("viet-phrases", JSON.stringify(phrases));
 
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-
-      syncTimeoutRef.current = setTimeout(async () => {
-        setIsSyncing(true);
-        try {
-          await fetch("/api/phrases", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ syncKey, phrases }),
-          });
-        } catch (error) {
-          console.error("Error syncing phrases:", error);
-        } finally {
-          setIsSyncing(false);
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
         }
-      }, 1000);
+
+        syncTimeoutRef.current = setTimeout(async () => {
+          setIsSyncing(true);
+          try {
+            await fetch("/api/phrases", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phrases }),
+            });
+          } catch (error) {
+            console.error("Error syncing phrases:", error);
+          } finally {
+            setIsSyncing(false);
+          }
+        }, 1000);
+      } else {
+        // Trial mode: only save to localStorage
+        localStorage.setItem("viet-trial-phrases", JSON.stringify(phrases));
+      }
     }
-  }, [phrases, syncKey]);
+  }, [phrases, isSignedIn]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +128,12 @@ export default function Home() {
     if (existing) {
       setCurrentPhrase(existing);
       setInput("");
+      return;
+    }
+
+    // Check trial mode limit
+    if (!isSignedIn && phrases.length >= TRIAL_PHRASE_LIMIT) {
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -170,30 +182,6 @@ export default function Home() {
     }
   };
 
-  const handleSetSyncKey = async (newKey: string) => {
-    if (!newKey.trim()) return;
-
-    localStorage.setItem("viet-sync-key", newKey.trim());
-    setSyncKey(newKey.trim());
-
-    // Load phrases for this sync key
-    try {
-      const response = await fetch(`/api/phrases?syncKey=${newKey.trim()}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPhrases(data.phrases || []);
-      }
-    } catch (error) {
-      console.error("Error loading phrases for new sync key:", error);
-    }
-
-    setShowSyncKey(false);
-  };
-
-  const handleCopySyncKey = () => {
-    navigator.clipboard.writeText(syncKey);
-    alert("Sync key copied! Use it on your other devices.");
-  };
 
   const handleDeletePhrase = (phraseId: string, phraseName: string) => {
     if (confirm(`Delete "${phraseName}"?`)) {
@@ -210,17 +198,19 @@ export default function Home() {
     if (confirm(`Delete all ${phrases.length} phrases? This cannot be undone.`)) {
       setPhrases([]);
       setCurrentPhrase(null);
-      localStorage.setItem("viet-phrases", JSON.stringify([]));
 
-      // Sync empty state to backend
-      if (syncKey) {
+      if (isSignedIn) {
+        localStorage.setItem("viet-phrases", JSON.stringify([]));
+        // Sync empty state to backend
         fetch("/api/phrases", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ syncKey, phrases: [] }),
+          body: JSON.stringify({ phrases: [] }),
         }).catch((error) => {
           console.error("Error syncing clear all:", error);
         });
+      } else {
+        localStorage.setItem("viet-trial-phrases", JSON.stringify([]));
       }
     }
   };
@@ -374,49 +364,36 @@ export default function Home() {
         </div>
       )}
 
-      {/* Sync key modal */}
-      {showSyncKey && (
+      {/* Auth prompt modal */}
+      {showAuthPrompt && (
         <div className={styles.listView}>
           <div className={styles.listHeader}>
-            <h2>Sync Across Devices</h2>
-            <button onClick={() => setShowSyncKey(false)} className={styles.closeBtn}>
+            <h2>Trial Limit Reached</h2>
+            <button onClick={() => setShowAuthPrompt(false)} className={styles.closeBtn}>
               ✕
             </button>
           </div>
           <div className={styles.listContent}>
             <div className={styles.syncKeySection}>
               <p className={styles.syncKeyInfo}>
-                Your sync key keeps your phrases in sync across all your devices.
+                You've reached the trial limit of {TRIAL_PHRASE_LIMIT} phrases. Sign up for a free account to:
               </p>
-              <div className={styles.syncKeyDisplay}>
-                <code className={styles.syncKeyCode}>{syncKey}</code>
-                <button onClick={handleCopySyncKey} className={styles.copyBtn}>
-                  Copy
-                </button>
-              </div>
-              <p className={styles.syncKeyInfo}>
-                To sync another device, enter your sync key there:
-              </p>
-              <div className={styles.syncKeyInput}>
-                <input
-                  type="text"
-                  placeholder="Enter sync key from another device"
-                  className={styles.input}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSetSyncKey((e.target as HTMLInputElement).value);
-                    }
-                  }}
-                />
-                <button
-                  onClick={(e) => {
-                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                    handleSetSyncKey(input.value);
-                  }}
-                  className={styles.submitBtn}
-                >
-                  →
-                </button>
+              <ul className={styles.authBenefits}>
+                <li>Save unlimited phrases</li>
+                <li>Sync across all your devices</li>
+                <li>Never lose your progress</li>
+              </ul>
+              <div className={styles.authButtons}>
+                <SignUpButton mode="modal">
+                  <button className={styles.signUpBtn}>
+                    Create Free Account
+                  </button>
+                </SignUpButton>
+                <SignInButton mode="modal">
+                  <button className={styles.signInBtn}>
+                    Sign In
+                  </button>
+                </SignInButton>
               </div>
             </div>
           </div>
@@ -489,16 +466,22 @@ export default function Home() {
             >
               <span className={styles.diacriticsIcon}>ắ</span>
             </Link>
-            <button
-              className={styles.syncBtn}
-              onClick={() => setShowSyncKey(true)}
-              aria-label="Sync settings"
-              title="Sync across devices"
-            >
-              <span className={styles.syncIcon}>
-                {isSyncing ? "⟳" : "☁"}
-              </span>
-            </button>
+            {isSignedIn ? (
+              <>
+                <div className={styles.syncStatus}>
+                  {isSyncing && <span className={styles.syncIcon}>⟳</span>}
+                </div>
+                <div className={styles.userButton}>
+                  <UserButton afterSignOutUrl="/" />
+                </div>
+              </>
+            ) : (
+              <div className={styles.trialBadge}>
+                <span className={styles.trialText}>
+                  Trial: {phrases.length}/{TRIAL_PHRASE_LIMIT}
+                </span>
+              </div>
+            )}
             <button
               className={styles.listBtn}
               onClick={() => setShowList(true)}
