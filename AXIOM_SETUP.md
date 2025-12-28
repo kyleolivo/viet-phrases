@@ -2,6 +2,12 @@
 
 This guide explains how to set up log persistence using Axiom and Vercel Log Drains.
 
+## Prerequisites
+
+Before you can build or deploy this application, you need to set up environment variables for Clerk authentication. See `.env.example` for all required variables.
+
+**Important**: The application requires Clerk environment variables to build successfully. Make sure to set up a `.env.local` file (for local development) or configure environment variables in your deployment platform before building.
+
 ## Overview
 
 Your application now logs all requests to `console.log` in structured JSON format. These logs are:
